@@ -140,16 +140,19 @@ fn send_p2pk_tx<T: Config>(
     value: u128,
 ) -> Result<(), DispatchError> {
     let fund_info =
-        <ContractBalances<T>>::get(&caller).ok_or(DispatchError::Other("Caller doesn't exist"))?;
+        <ContractBalances<T>>::take(&caller).ok_or(DispatchError::Other("Caller doesn't exist"))?;
     ensure!(fund_info.funds >= value, "Caller doesn't have enough funds");
     let outpoints = fund_info.utxos.iter().map(|x| x.0).collect::<Vec<H256>>();
 
-    T::Utxo::submit_c2pk_tx(caller, dest, value, &outpoints).map(|_| {
+    T::Utxo::submit_c2pk_tx(caller, dest, value, &outpoints).map_err(|_| {
         <ContractBalances<T>>::mutate(&caller, |info| {
-            info.as_mut().unwrap().utxos = Vec::new();
-            info.as_mut().unwrap().funds = 0;
+            info.as_mut().unwrap().utxos = fund_info.utxos;
+            info.as_mut().unwrap().funds = fund_info.funds;
         });
-    })
+        DispatchError::Other("Failed to submit C2PK transaction")
+    })?;
+
+    Ok(())
 }
 
 /// Create Contract-to-Contract transfer that allows smart contracts to
@@ -169,17 +172,20 @@ fn send_c2c_tx<T: Config>(
     dest: &T::AccountId,
     data: &Vec<u8>,
 ) -> Result<(), DispatchError> {
-    let fund_info = <ContractBalances<T>>::get(caller).ok_or(DispatchError::Other(
+    let fund_info = <ContractBalances<T>>::take(caller).ok_or(DispatchError::Other(
         "Contract doesn't own any UTXO or it doesn't exist!",
     ))?;
     let outpoints = fund_info.utxos.iter().map(|x| x.0).collect::<Vec<H256>>();
 
-    T::Utxo::submit_c2c_tx(caller, dest, fund_info.funds, data, &outpoints).map(|_| {
+    T::Utxo::submit_c2c_tx(caller, dest, fund_info.funds, data, &outpoints).map_err(|_| {
         <ContractBalances<T>>::mutate(&caller, |info| {
-            info.as_mut().unwrap().utxos = Vec::new();
-            info.as_mut().unwrap().funds = 0;
+            info.as_mut().unwrap().utxos = fund_info.utxos;
+            info.as_mut().unwrap().funds = fund_info.funds;
         });
-    })
+        DispatchError::Other("Failed to submit C2C transaction")
+    })?;
+
+    Ok(())
 }
 
 impl<T: Config> ProgrammablePoolApi for Pallet<T>
@@ -230,8 +236,8 @@ where
         caller: &T::AccountId,
         dest: &T::AccountId,
         gas_limit: Weight,
-        utxo_hash: H256,
-        utxo_value: u128,
+        _utxo_hash: H256,
+        _utxo_value: u128,
         input_data: &Vec<u8>,
     ) -> Result<(), &'static str> {
         let _ = pallet_contracts::Pallet::<T>::bare_call(

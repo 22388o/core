@@ -1082,7 +1082,6 @@ pub mod pallet {
     /// Update storage to reflect changes made by transaction
     /// Where each utxo key is a hash of the entire transaction and its order in the TransactionOutputs vector
     pub fn update_storage<T: Config>(
-        caller: &T::AccountId,
         tx: &TransactionFor<T>,
         reward: Value,
     ) -> DispatchResultWithPostInfo {
@@ -1137,14 +1136,14 @@ pub mod pallet {
                     }
                 }
                 Destination::CreatePP(script, data) => {
-                    log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
-                    <UtxoStore<T>>::insert(hash, output);
-                    create::<T>(caller, script, hash, output.value, &data);
+                    //log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
+                    //<UtxoStore<T>>::insert(hash, output);
+                    //create::<T>(caller, script, hash, output.value, &data);
                 }
                 Destination::CallPP(acct_id, fund, data) => {
-                    log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
-                    <UtxoStore<T>>::insert(hash, output);
-                    call::<T>(caller, acct_id, hash, output.value, *fund, data);
+                    //log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
+                    //<UtxoStore<T>>::insert(hash, output);
+                    //call::<T>(caller, acct_id, hash, output.value, *fund, data);
                 }
                 Destination::LockForStaking { .. } => {
                     staking::lock_for_staking::<T>(hash, output)?;
@@ -1159,12 +1158,11 @@ pub mod pallet {
     }
 
     pub fn spend<T: Config>(
-        caller: &T::AccountId,
         tx: &TransactionFor<T>,
     ) -> DispatchResultWithPostInfo {
         let tx_validity = validate_transaction::<T>(tx)?;
         ensure!(tx_validity.requires.is_empty(), "missing inputs");
-        update_storage::<T>(caller, tx, tx_validity.priority as Value)?;
+        update_storage::<T>(tx, tx_validity.priority as Value)?;
         Ok(().into())
     }
 
@@ -1208,10 +1206,10 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         #[pallet::weight(<T as Config>::WeightInfo::spend(tx.inputs.len().saturating_add(tx.outputs.len()) as u32))]
         pub fn spend(
-            origin: OriginFor<T>,
+            _origin: OriginFor<T>,
             tx: Transaction<T::AccountId>,
         ) -> DispatchResultWithPostInfo {
-            spend::<T>(&ensure_signed(origin)?, &tx)?;
+            spend::<T>(&tx)?;
             Self::deposit_event(Event::<T>::TransactionSuccess(tx));
             Ok(().into())
         }
@@ -1280,7 +1278,7 @@ pub mod pallet {
                     .ok_or(DispatchError::Other("Failed to sign the transaction"))?;
             }
 
-            spend::<T>(&signer, &tx)
+            spend::<T>(&tx)
         }
 
         /// unlock the stake using the STASH ACCOUNT. Stops validating, and allow access to withdraw.
@@ -1404,14 +1402,13 @@ where
     type AccountId = T::AccountId;
 
     fn spend(
-        caller: &T::AccountId,
+        _caller: &T::AccountId,
         value: u128,
         address: H256,
         utxo: H256,
         sig: H512,
     ) -> DispatchResultWithPostInfo {
         spend::<T>(
-            caller,
             &Transaction {
                 inputs: vec![TransactionInput::new_with_signature(utxo, sig)],
                 outputs: vec![TransactionOutputFor::<T>::new_pubkey(value, address)],
@@ -1431,7 +1428,7 @@ where
     }
 
     fn send_conscrit_p2pk(
-        caller: &T::AccountId,
+        _caller: &T::AccountId,
         dest: &T::AccountId,
         value: u128,
         outpoints: &Vec<H256>,
@@ -1440,7 +1437,7 @@ where
             dest.encode().try_into().map_err(|_| "Failed to get caller's public key")?;
 
         spend::<T>(
-            caller,
+            //caller,
             &Transaction {
                 inputs: coin_picker::<T>(outpoints)?,
                 outputs: vec![TransactionOutput::new_pubkey(value, H256::from(pubkey_raw))],
@@ -1459,7 +1456,7 @@ where
         outpoints: &Vec<H256>,
     ) -> Result<(), DispatchError> {
         spend::<T>(
-            caller,
+            //caller,
             &Transaction {
                 inputs: coin_picker::<T>(outpoints)?,
                 outputs: vec![TransactionOutput::new_call_pp(

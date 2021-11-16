@@ -1135,12 +1135,12 @@ pub mod pallet {
                         Some(OutputData::TokenTransferV1 { .. }) | None => continue,
                     }
                 }
-                Destination::CreatePP(script, data) => {
+                Destination::CreatePP(_script, _data) => {
                     //log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
                     //<UtxoStore<T>>::insert(hash, output);
                     //create::<T>(caller, script, hash, output.value, &data);
                 }
-                Destination::CallPP(acct_id, fund, data) => {
+                Destination::CallPP(_acct_id, _fund, _data) => {
                     //log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
                     //<UtxoStore<T>>::insert(hash, output);
                     //call::<T>(caller, acct_id, hash, output.value, *fund, data);
@@ -1449,7 +1449,7 @@ where
     }
 
     fn send_conscrit_c2c(
-        caller: &Self::AccountId,
+        _caller: &Self::AccountId,
         dest: &Self::AccountId,
         value: u128,
         data: &Vec<u8>,

@@ -126,7 +126,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 ///
 /// Change this to adjust the block time.
 #[cfg(not(feature = "short-block-time"))]
-pub const MILLISECS_PER_BLOCK: u64 = 60_000; // 1 min
+pub const MILLISECS_PER_BLOCK: u64 = 60_00; // 1 min
 #[cfg(feature = "short-block-time")]
 pub const MILLISECS_PER_BLOCK: u64 = 3_000; // 3 sec
 

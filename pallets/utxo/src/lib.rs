@@ -382,7 +382,7 @@ pub mod pallet {
         pub fn new_call_pp(value: Value, dest_account: AccountId, input: Vec<u8>) -> Self {
             Self {
                 value,
-                destination: Destination::CallPP(dest_account, fund, input),
+                destination: Destination::CallPP(dest_account, input),
                 data: None,
             }
         }
@@ -945,7 +945,11 @@ pub mod pallet {
                     ensure!(!<UtxoStore<T>>::contains_key(hash), "output already exists");
                     log::info!("TODO validate CallPP as output");
                 }
-                Destination::Pubkey(_) | Destination::ScriptHash(_)  | Destination::FundPP(_) => {
+                Destination::FundPP(_) => {
+                    ensure!(!<UtxoStore<T>>::contains_key(hash), "output already exists");
+                    log::info!("TODO validate FundPP as output");
+                }
+                Destination::Pubkey(_) | Destination::ScriptHash(_) => {
                     ensure!(!<UtxoStore<T>>::contains_key(hash), "output already exists");
                 }
                 Destination::LockForStaking { .. } | Destination::LockExtraForStaking { .. } => {
@@ -1076,6 +1080,8 @@ pub mod pallet {
             }
         }
 
+        log::info!("valid transaction!");
+
         Ok(ValidTransaction {
             priority: reward as u64,
             requires: input_utxos.map_or_else(|x| x, |_| Vec::new()),
@@ -1148,12 +1154,14 @@ pub mod pallet {
                     create::<T>(caller, script, hash, output.value, &data)?;
                 }
                 Destination::CallPP(acct_id, data) => {
+                    log::info!("call PP and execute function call");
                     log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
                     <UtxoStore<T>>::insert(hash, output);
                     call::<T>(caller, acct_id, hash, output.value, data)?;
                 }
                 Destination::FundPP(acct_id) => {
-                    log::debug!("inserting to UtxoStore {:?} as key {:?}", output, hash);
+                    log::info!("add fundpp to utxostore");
+                    log::error!("inserting to UtxoStore {:?} as key {:?}", output, hash);
                     <UtxoStore<T>>::insert(hash, output);
                     T::ProgrammablePool::fund(acct_id, hash, output.value)?;
                 }

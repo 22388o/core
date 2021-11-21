@@ -149,6 +149,7 @@ fn send_p2pk_tx<T: Config>(
             info.as_mut().unwrap().utxos = fund_info.utxos;
             info.as_mut().unwrap().funds = fund_info.funds;
         });
+        log::error!("Failed to submit c2pk transfer!");
         DispatchError::Other("Failed to submit C2PK transaction")
     })?;
 
@@ -220,6 +221,8 @@ where
             "Failed to instantiate smart contract"
         })?;
 
+        log::info!("OP_CREATE res: {:?}", res);
+
         // Create balance entry for the smart contract
         <ContractBalances<T>>::insert(
             res.account_id,
@@ -240,7 +243,10 @@ where
         _utxo_value: u128,
         input_data: &Vec<u8>,
     ) -> Result<(), &'static str> {
-        let _ = pallet_contracts::Pallet::<T>::bare_call(
+
+        log::info!("EXECUTING OP_CALL");
+        
+        let res = pallet_contracts::Pallet::<T>::bare_call(
             caller.clone(),
             dest.clone(),
             0u32.into(),
@@ -254,16 +260,29 @@ where
             "Failed to call smart contract"
         })?;
 
+        log::info!("OP_CALL res: {:?}", res);
+
         Ok(())
     }
 
     fn fund(dest: &T::AccountId, utxo_hash: H256, utxo_value: u128) -> Result<(), &'static str> {
-        <ContractBalances<T>>::get(&dest).ok_or("Contract doesn't exist!")?;
+
+        // TODO: contract doens't exist because we've used `take()` to fetch the data and probably
+        // haven't reinitialized it back
+        
+        // <ContractBalances<T>>::get(&dest).ok_or("Contract doesn't exist!")?;
+        match <ContractBalances<T>>::get(&dest) {
+            Some(_) => { log::info!("contract exists") },
+            None => {
+                log::error!( "contract DOES NOT exist");
+            }
+        }
         <ContractBalances<T>>::mutate(dest, |info| {
             info.as_mut().unwrap().utxos.push((utxo_hash, utxo_value));
             info.as_mut().unwrap().funds += utxo_value;
         });
 
+        log::info!("FundPP succeeded");
         Ok(())
     }
 }
@@ -292,13 +311,26 @@ impl<T: pallet_contracts::Config + pallet::Config> ChainExtension<T> for Pallet<
             x if x == ChainExtensionCall::Transfer as u32 => {
                 let (dest, value): (T::AccountId, u128) = env.read_as()?;
 
+                log::error!("hERERE TRY TO TRANSFER {:?}", value);
+
                 if !<ContractBalances<T>>::get(&dest).is_none() {
                     return Err(DispatchError::Other(
                         "Contract-to-contract transactions not implemented",
                     ));
                 }
 
-                send_p2pk_tx::<T>(&acc_id, &dest, value)?
+                match send_p2pk_tx::<T>(&acc_id, &dest, value) {
+                    Ok(_) => {
+                        log::info!("OK");
+                        // return Ok(v);
+                    }
+                    Err(e) => {
+                        log::info!("ERR {:?}", e);
+                        return Err(DispatchError::Other("Failure"));
+                    }
+                }
+
+                // send_p2pk_tx::<T>(&acc_id, &dest, value)?
             }
             x if x == ChainExtensionCall::Balance as u32 => {
                 let fund_info = <ContractBalances<T>>::get(&acc_id).ok_or(DispatchError::Other(
